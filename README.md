@@ -466,6 +466,91 @@ a separately reviewed authentication proxy if remote access is required.
 
 ---
 
+## ☁️ Deploy on Netlify (personal)
+
+This fork adds a Netlify hosting path for **personal, non-commercial use**:
+the static Vite build plus one serverless function
+([`netlify/functions/api.mjs`](netlify/functions/api.mjs)) that reuses the
+same `server/providers` modules the local dev server mounts, so the live
+`/api/*` proxies keep working. [`netlify.toml`](netlify.toml) carries the
+build command (`npm ci && npm run build`), the `dist` publish directory,
+Node 24, and the SPA fallback.
+
+> **License note:** the app code is MIT, but bundled/live datasets keep their
+> own terms ([DATA_SOURCES.md](DATA_SOURCES.md)). The TeleGeography
+> undersea-cable dataset is **CC BY-NC-SA (NonCommercial)** and Google News
+> RSS is personal/non-commercial — keep a hosted deployment personal, or
+> remove those sources. All in-app attribution must stay visible.
+
+**Deploy it:**
+
+1. In Netlify: **Add new site → Import an existing project**, pick this
+   GitHub repo. The committed `netlify.toml` supplies every build setting —
+   no UI overrides needed.
+2. Deploy with **no environment variables** first if you like: the keyless
+   baseline works (Esri imagery, flights, military traffic, satellites,
+   launches, earthquakes, radio, public cameras).
+3. Add keys under **Site configuration → Environment variables** (same names
+   as [`.env.example`](.env.example)), then **redeploy**. The POWER UP panel
+   is deliberately not deployed on Netlify — it writes a local `.env` and only
+   answers the machine's owner — so the env vars *are* the key store here.
+
+| Variable | Unlocks | Notes |
+| --- | --- | --- |
+| `CESIUM_ION_TOKEN` | Photorealistic 3D via ion, world terrain | **Client-exposed by design** — baked into the bundle at build time; use a scoped assets:read token |
+| `GOOGLE_MAPS_API_KEY` | Direct Google 3D tiles + place search | **Client-exposed by design** — restrict by HTTP referrer to your Netlify domain |
+| `GOOGLE_MAPS_SERVER_API_KEY` | Server-side Places / Street View fallback | Server-only; optional split from the key above |
+| `OPENAI_API_KEY` | Voice control + HUD summaries | Server-only; the `OPENAI_REALTIME_*` tuning vars from `.env.example` apply too |
+| `OPENSKY_CLIENT_ID` / `OPENSKY_CLIENT_SECRET` | Higher aircraft rate limits | Server-only; or set `OPENSKY_AUTH_MODE=anon` for keyless |
+| `FIRMS_MAP_KEY` | NASA FIRMS active fires | Server-only |
+| `TOMTOM_API_KEY` | Live traffic flow | Server-only; keyless falls back to simulation |
+| `LL2_API_TOKEN` | Higher Launch Library allowance | Server-only; optional |
+| `AISSTREAM_API_KEY` | Live vessels | **Limited on Netlify** — see below |
+| `GEV_RATELIMIT_OPENAI_PER_MIN` / `GEV_RATELIMIT_GOOGLE_PER_MIN` | Per-IP throttles on the cost endpoints | **Recommended on any public deploy**; not billing caps — set provider-side budgets too |
+
+Because `GOOGLE_MAPS_API_KEY` and `CESIUM_ION_TOKEN` are compiled into the
+browser bundle, changing them requires a redeploy, and `netlify.toml` lists
+them in `SECRETS_SCAN_OMIT_KEYS` so the secrets scanner doesn't flag this
+intentional exposure. Everything else stays server-side in the function.
+
+**To keep the site to yourself,** use Netlify's visitor access controls
+(site password / private site) — anyone who can reach the site can spend
+your configured quotas, exactly like the LAN-sharing warning above. No
+Supabase or other backend is needed for this: keys live in Netlify env vars
+and privacy is a Netlify site setting.
+
+**What doesn't carry over to serverless** (everything else works):
+
+- **Live AIS vessels** — AISStream allows one long-lived websocket per key,
+  which a function instance can't hold open between invocations. The layer
+  reports its honest unavailable/stale state; run locally for live vessels.
+- **Continuous CCTV media streams** (MJPEG/HLS piping) stop at the function's
+  synchronous time limit; static frames and fallbacks work normally.
+- **Disk caches** (`.gev-cache/`) are per-instance and ephemeral, so the
+  TomTom daily-budget counter is best-effort rather than durable.
+- `/api/realtime/debug-log` can't persist on a read-only bundle (debug-only).
+
+The full, unrestricted experience remains local `npm run dev`.
+
+### Run on Jarvis later
+
+For the complete app (live vessels included) on the Windows desktop:
+
+```bash
+git clone https://github.com/MDeanH/gods-eye-view.git
+cd gods-eye-view
+npm ci
+npm run doctor
+npm run dev
+```
+
+Use Node.js 24.x (24.14.0 or later; `winget install OpenJS.NodeJS.LTS` or
+[nvm-windows](https://github.com/coreybutler/nvm-windows)), open
+`http://localhost:4173`, and add keys through the in-app **POWER UP** panel —
+they land in the repo-root `.env`, never in Git.
+
+---
+
 ## 📋 Responsible & Open
 
 God's Eye View runs on **public data, clear sources, and local-first execution.** No secrets, no private datasets, no mystery scraping — anything involving a private key is brokered server-side. It has the visual grammar of a classified ops room, built entirely from open signals and inspectable code.

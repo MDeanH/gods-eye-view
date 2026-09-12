@@ -1,0 +1,40 @@
+# Netlify deployment for God's Eye View (personal / non-commercial hosting).
+#
+# Static Vite build + one serverless function (netlify/functions/api.mjs) that
+# reuses the same server/providers modules the local dev server mounts, so the
+# live /api/* proxies keep working on Netlify. See README "Deploy on Netlify".
+#
+# Bundled third-party data keeps its own terms (DATA_SOURCES.md) — notably the
+# TeleGeography undersea-cable dataset is CC BY-NC-SA (NonCommercial), so this
+# hosted deployment must stay personal/non-commercial or remove that dataset.
+
+[build]
+  command = "npm ci && npm run build"
+  publish = "dist"
+
+[build.environment]
+  # package.json engines requires Node >=24.14 <25 (or 26.x). Netlify derives
+  # the functions runtime from the build's Node version, so this pins both.
+  NODE_VERSION = "24"
+  # These two keys are injected into the browser bundle BY DESIGN (they are
+  # used client-side; see .env.example and SECURITY.md). Restrict them at the
+  # provider instead of treating their presence in dist/ as a leak — without
+  # this, Netlify's secrets scanner fails the build when they are set.
+  SECRETS_SCAN_OMIT_KEYS = "GOOGLE_MAPS_API_KEY,CESIUM_ION_TOKEN"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[functions.api]
+  # The CCTV provider reads its source pack from the checkout; ship the config
+  # directory inside the function bundle (resolved in api.mjs boot()).
+  included_files = ["config/**"]
+
+# SPA fallback. The /api/* function route is declared in-code (config.path in
+# netlify/functions/api.mjs) and function routes are evaluated before redirect
+# rules, so this catch-all never shadows the API.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
